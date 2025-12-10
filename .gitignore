@@ -1,0 +1,9 @@
+/.gradio
+/__pycache__
+/btc_logo.png
+/model_BTC-USD.pth
+/model_SOL-USD.pth
+/scaler_BTC-USD.pkl
+/scaler_SOL-USD.pkl
+/sol_logo.png
+/venv
