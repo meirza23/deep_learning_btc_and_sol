@@ -10,6 +10,7 @@ import os
 import requests
 import pandas as pd
 
+# --- İkonları İndir ---
 def download_icons():
     icons = {
         "btc_logo.png": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Bitcoin.svg/64px-Bitcoin.svg.png",
@@ -24,8 +25,12 @@ def download_icons():
             except: pass
 download_icons()
 
+# --- Analiz Fonksiyonu ---
 def analyze_crypto(symbol):
+    # Grafik stilini daha estetik yap
+    plt.style.use('seaborn-v0_8-darkgrid') 
     fig = plt.figure(figsize=(10, 5))
+    
     try:
         model_path = f"model_{symbol}.pth"
         input_scaler_path = f"scaler_input_{symbol}.pkl"
@@ -35,7 +40,7 @@ def analyze_crypto(symbol):
 
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-        # Model
+        # Model yapısı
         model = GRUModel(input_size=1, hidden_size=256, num_layers=2)
         try:
             model.load_state_dict(torch.load(model_path, map_location=device))
@@ -50,75 +55,127 @@ def analyze_crypto(symbol):
         
         try:
             df = yf.download(symbol, start=start_date, end=end_date, progress=False, auto_adjust=True)
+            # MultiIndex sorununu çöz
             if isinstance(df.columns, pd.MultiIndex):
                 try: df = df.xs('Close', level=0, axis=1)
                 except: df = df.xs('Adj Close', level=0, axis=1)
-            if len(df.columns) > 1 and 'Close' in df.columns: df = df[['Close']]
+            
+            # Sadece Close sütununu al
+            if len(df.columns) > 1:
+                # Eğer 'Close' string olarak varsa al, yoksa ilk sütunu al
+                if 'Close' in df.columns: df = df[['Close']]
+                else: df = df.iloc[:, 0:1]
+            
             df.columns = ['Close']
             
             if len(df) < 30: return fig, "Yetersiz veri."
             
             values = df.values.astype(float).flatten()
-            last_seq = values[-30:].reshape(-1, 1) # Son 30 günün fiyatları
+            last_seq = values[-30:].reshape(-1, 1) # Son 30 gün
             current_price = values[-1]
 
         except Exception as e: return fig, f"Veri hatası: {e}"
 
-        # Fiyatları ölçekle
+        # Tahmin İşlemi
         input_scaled = scaler_input.transform(last_seq)
         input_tensor = torch.tensor(input_scaled, dtype=torch.float32).unsqueeze(0)
         
         with torch.no_grad():
             prediction_diff_scaled = model(input_tensor)
             
-        # Farkı gerçek boyuta çevir (Örn: +200$)
         pred_diff = scaler_target.inverse_transform(prediction_diff_scaled.numpy())
         predicted_change = float(pred_diff.item())
-        
-        # TAHMİNİ HESAPLA: Bugün + Değişim
         predicted_price = round(current_price + predicted_change, 2)
 
+        # Grafik Çizimi
         plot_data = values[-90:] 
-        plt.plot(range(len(plot_data)), plot_data, label='Geçmiş', color='#1f77b4', linewidth=2)
-        plt.scatter(len(plot_data), predicted_price, color='red', s=100, label='Tahmin', zorder=5)
-        plt.plot([len(plot_data)-1, len(plot_data)], [plot_data[-1], predicted_price], color='red', linestyle='--', alpha=0.7)
-        plt.title(f"{symbol} Analizi (Delta Tahmini)", fontsize=14)
-        plt.legend()
-        plt.grid(True, alpha=0.3)
+        x_range = range(len(plot_data))
+        
+        plt.plot(x_range, plot_data, label='Son 90 Gün', color='#2980b9', linewidth=2.5)
+        plt.scatter(len(plot_data), predicted_price, color='#e74c3c', s=120, label='AI Tahmini', zorder=5, edgecolor='white')
+        
+        # Son noktadan tahmine kesikli çizgi
+        plt.plot([len(plot_data)-1, len(plot_data)], [plot_data[-1], predicted_price], 
+                 color='#e74c3c', linestyle='--', alpha=0.8, linewidth=1.5)
+        
+        plt.title(f"{symbol} AI Fiyat Tahmini", fontsize=14, pad=15, fontweight='bold')
+        plt.legend(frameon=True, fancybox=True, framealpha=1)
         plt.tight_layout()
         
+        # Rapor Oluşturma
         yuzde = (predicted_change / current_price) * 100
-        icon = "🚀 YÜKSELİŞ" if predicted_change > 0 else "🔻 DÜŞÜŞ"
+        icon = "🚀 YÜKSELİŞ BEKLENTİSİ" if predicted_change > 0 else "🔻 DÜŞÜŞ BEKLENTİSİ"
+        color_code = "green" if predicted_change > 0 else "red"
         fark_str = f"+${predicted_change:.2f}" if predicted_change > 0 else f"-${abs(predicted_change):.2f}"
         
         report = (
-            f"✅ DELTA ANALİZİ: {symbol}\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"💵 Fiyat: ${current_price:.2f}\n"
-            f"🔮 Tahmin: ${predicted_price}\n"
-            f"📊 Fark: {fark_str} (%{yuzde:.2f})\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"Yön: {icon}"
+            f"ANALİZ RAPORU: {symbol}\n"
+            f"──────────────────────────\n"
+            f"💵 Mevcut Fiyat:   ${current_price:.2f}\n"
+            f"🎯 AI Hedef Fiyat: ${predicted_price}\n"
+            f"📊 Beklenen Fark:  {fark_str} (%{yuzde:.2f})\n"
+            f"──────────────────────────\n"
+            f"\n{icon}"
         )
         return fig, report
 
-    except Exception as e: return fig, f"Hata: {str(e)}"
+    except Exception as e: return fig, f"Sistem Hatası: {str(e)}"
 
-custom_css = "footer {visibility: hidden !important;} .gradio-container {min-height: 0px !important;}"
 def click_btc(): return analyze_crypto("BTC-USD")
 def click_sol(): return analyze_crypto("SOL-USD")
 
-with gr.Blocks(title="Kripto AI Terminal") as demo:
-    gr.Markdown("# 🧠 Kripto Para Yapay Zeka Terminali")
-    gr.Markdown("Fiyat Farkı (Delta) Öğrenme Modeli - Yüksek Yön Başarısı")
-    with gr.Row():
-        btn_btc = gr.Button("Bitcoin (BTC)", icon="btc_logo.png")
-        btn_sol = gr.Button("Solana (SOL)", icon="sol_logo.png")
-    with gr.Row():
-        plot_output = gr.Plot(label="Grafik")
-        text_output = gr.Textbox(label="Rapor", lines=10)
+# --- Arayüz Tasarımı (CSS ve Layout) ---
+
+# CSS ile sayfa ortalama ve estetik dokunuşlar
+custom_css = """
+#main-container {
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+}
+h1 {
+    text-align: center; 
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: #2c3e50;
+    margin-bottom: 5px;
+}
+.gradio-container {
+    background-color: #f9fafb;
+}
+footer {visibility: hidden !important;}
+"""
+
+# Tema seçimi
+theme = gr.themes.Soft(
+    primary_hue="blue",
+    secondary_hue="slate",
+    neutral_hue="slate"
+)
+
+# Düzeltme 1: css ve theme buradan kaldırıldı, launch'a taşındı.
+with gr.Blocks(title="Crypto AI") as demo:
+    
+    with gr.Column(elem_id="main-container"):
+        
+        gr.Markdown("# 🤖 Kripto Para Yapay Zeka Tahmin Modeli")
+        
+        with gr.Row():
+            btn_btc = gr.Button("Bitcoin Analiz Et", icon="btc_logo.png", variant="primary")
+            btn_sol = gr.Button("Solana Analiz Et", icon="sol_logo.png", variant="primary")
+            
+        gr.Markdown("---") 
+        
+        with gr.Row():
+            with gr.Column(scale=2): 
+                plot_output = gr.Plot(label="Fiyat Grafiği")
+            with gr.Column(scale=1): 
+                # Düzeltme 2: show_copy_button=True kaldırıldı
+                text_output = gr.Textbox(label="AI Raporu", lines=8)
+
+    # Buton Aksiyonları
     btn_btc.click(click_btc, None, [plot_output, text_output])
     btn_sol.click(click_sol, None, [plot_output, text_output])
 
 if __name__ == "__main__":
-    demo.launch(share=True, css=custom_css)
+    # Düzeltme 1 (Devamı): css ve theme buraya eklendi
+    demo.launch(share=True, css=custom_css, theme=theme)
