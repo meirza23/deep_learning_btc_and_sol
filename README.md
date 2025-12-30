@@ -1,4 +1,4 @@
-# 🚀 Crypto AI: GRU Tabanlı Fiyat Değişim Analizi
+   # 🚀 Crypto AI: GRU Tabanlı Fiyat Değişim Analizi
 
 Bu proje, **GRU (Gated Recurrent Unit)** derin öğrenme mimarisini kullanarak Bitcoin (BTC) ve Solana (SOL) için kısa vadeli fiyat hareketlerini tahmin etmeyi amaçlar.
 
@@ -51,7 +51,7 @@ Modelimiz, farklı volatilite seviyelerine sahip varlıklar üzerinde test edilm
 | Varlık | 📉 MAPE (Fiyat Hatası) | 🧭 Yön Başarısı | Analiz |
 | :--- | :--- | :--- | :--- |
 | **Bitcoin (BTC)** | **%1.43** | **%56.22** | ✅ Model piyasa yönünü yüksek başarıyla tahmin etmektedir. |
-| **Solana (SOL)** | **%3.14** | **%50.24** | ⚖️ Yüksek volatilite nedeniyle model fiyatı takip etmekte, ancak anlık kırılımlarda nötr kalmaktadır. |
+| **Solana (SOL)** | **%3.14** | **%51.24** | ⚖️ Yüksek volatilite nedeniyle model fiyatı takip etmekte, ancak anlık kırılımlarda nötr kalmaktadır. |
 
 *(Detaylı başarı grafikleri proje klasöründe `grafik_tahmin_BTC-USD.png` ve `grafik_tahmin_SOL-USD.png` dosyalarında mevcuttur.)*
 
